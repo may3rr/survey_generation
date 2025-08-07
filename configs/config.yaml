@@ -1,0 +1,44 @@
+# Survey Generation Configuration
+
+# API Configuration
+api:
+  gpt:
+    base_url: "https://api.gpt.ge/v1"
+    model: "gpt-4o-mini"
+    max_tokens: 1500
+    temperature: 0.7
+    max_retries: 3
+    retry_delay: 1.0
+  
+  qwen:
+    base_url: "https://api.vveai.com/v1"
+    model: "qwen3-14b"
+    max_tokens: 1500
+    temperature: 0.7
+    max_retries: 3
+    retry_delay: 1.0
+    enable_thinking: false
+
+# Data Configuration
+data:
+  raw_data_path: "./data/raw/original_survey_df.pkl"
+  processed_data_dir: "./data/processed"
+  output_dir: "./outputs"
+
+# Model Configuration
+model:
+  sentence_transformer: "all-MiniLM-L6-v2"
+  vector_search:
+    k: 5
+    similarity_threshold: 0.3
+
+# Generation Configuration
+generation:
+  num_surveys: 2
+  section_tokens: 1500
+  abstract_tokens: 500
+  
+# Evaluation Configuration
+evaluation:
+  rouge_metrics: ["rouge1", "rouge2", "rougeL"]
+  use_stemmer: true
