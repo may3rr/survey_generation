@@ -58,7 +58,7 @@ def create_env_template():
     env_content = """# API Configuration
 OPENAI_API_KEY=your_openai_api_key_here
 QWEN_API_KEY=your_qwen_api_key_here
-GPT_API_KEY=sk-gakaBMw0kKz3KaTSC559F71c481e4417A6Dc732c33AbAc90
+GPT_API_KEY=sk-g**0
 
 # Data Configuration
 DATA_PATH=./data/raw/original_survey_df.pkl
