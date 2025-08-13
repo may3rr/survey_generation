@@ -1,21 +1,25 @@
 # An LLM-driven Scientific Literature Surveys Generation Framework Based on Multi-Agents and RAG
 
-This repository contains the official implementation of the framework proposed in the paper, *"An LLM-driven Scientific Literature Surveys Generation Framework Based on Multi-Agents and RAG"*.
+This repository contains the official implementation for the paper, *"An LLM-driven Scientific Literature Surveys Generation Framework Based on Multi-Agents and RAG"*.
 
-Our system automates the generation of academic survey papers using a multi-agent architecture combined with Retrieval-Augmented Generation (RAG). It supports multiple LLMs and experimental configurations for comprehensive analysis.
+Our framework automates the generation of academic literature surveys by synergizing a multi-agent architecture with Retrieval-Augmented Generation (RAG). It provides a reproducible pipeline for generating surveys, evaluating their quality, and comparing the performance of different Large Language Models (LLMs).
 
 ## Key Features
 
--   **Multi-Agent Architecture**: A modular system featuring specialized agents for `Paper Allocation`, `Abstract Writing`, and `Section Generation` to ensure a structured and coherent output.
--   **Retrieval-Augmented Generation (RAG)**: Integrates a hybrid retrieval mechanism that uses direct citation matching and dense vector search (via FAISS) to ground the generated content in relevant academic literature.
--   **Configurable Experiments**: Supports various experimental setups, including different LLMs (GPT-4o-mini, Qwen3-14B) and ablation studies to evaluate the framework's components.
+-   **Multi-Agent Architecture**: A modular system featuring specialized agents for `Paper Allocation`, `Abstract Writing`, and `Section Generation` to ensure structured and coherent output.
+-   **Retrieval-Augmented Generation (RAG)**: Integrates a hybrid retrieval mechanism that uses direct citation matching and dense vector search (via FAISS) to ground generated content in relevant academic literature.
+-   **Configurable Experiments**: Supports various experimental setups, including different LLMs (e.g., GPT-4o-mini, Qwen3-14B) and ablation studies.
 -   **Quantitative Evaluation**: Includes scripts for assessing the quality of generated surveys using standard ROUGE metrics.
 
-## Quick Start Guide
+## Reproducibility Guide
 
-This guide provides the necessary steps to set up the environment and reproduce the experiments described in the paper.
+### 1. Requirements
 
-### 1. Setup Environment
+-   **OS**: macOS / Windows 11 / Linux
+-   **Python Version**: 3.9+
+-   **Hardware**: A multi-core CPU is recommended. A CUDA-enabled GPU is optional but can accelerate certain embedding processes if `faiss-gpu` is used.
+
+### 2. Setup Environment
 
 First, clone the repository and install the required dependencies.
 
@@ -24,16 +28,26 @@ First, clone the repository and install the required dependencies.
 git clone https://github.com/may3rr/survey_generation.git
 cd survey_generation
 
+# Create and activate a virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+
 # Install dependencies from requirements.txt
 pip install -r requirements.txt
 
 # Download required NLTK data
 python -c "import nltk; nltk.download('punkt')"
 ```
+*Note: The versions specified in `requirements.txt` are the minimum required versions. The project has been tested with the versions listed in the file.*
 
-### 2. Download Datasets
+### 3. Dataset and Preprocessing
 
-The raw and processed datasets are necessary but not included in this repository due to their size.
+#### Dataset Information and License
+This work is built upon the **SciReviewGen** dataset. For full details, please refer to the official dataset repository: [**https://github.com/tetsu9923/SciReviewGen**](https://github.com/tetsu9923/SciReviewGen).
+
+
+#### Data Download
+Due to their large size, the raw and preprocessed data files used in our experiments must be downloaded separately. Our experiments use the `original_survey_df` version of the dataset.
 
 -   **Raw Data (`original_survey_df.pkl`)**:
     -   Download from: [Google Drive](https://drive.google.com/file/d/1J83Ku6Qe63Tu6iDX9ek-G5SLxceDTXIC/view?usp=drive_link)
@@ -41,39 +55,28 @@ The raw and processed datasets are necessary but not included in this repository
 
 -   **Processed Data (FAISS index, etc.)**:
     -   Download from: [Google Drive](https://drive.google.com/file/d/1zzKO5cS7YAD4tjZ6K7QxhrYfqydpuopX/view?usp=drive_link)
-    -   Unzip the archive and place its contents into the `.processed_data/` directory.
+    -   Unzip the archive and place its contents into the `processed_data/` directory.
 
-After this step, your `data/` directory should have the following structure:
-```
-processed_data/
-├──abstract_index.faiss
-├──bib_abstracts.json
-├──... (other processed files)
-data/
-├── raw/
-│   └── original_survey_df.pkl
-```
+#### Data Processing Methodology
+The `processed_data/` directory contains files generated from the raw data. The key preprocessing step was the creation of a semantic search index for the RAG module. We generated vector embeddings for the abstracts of all cited papers using the **`sentence-transformers/all-MiniLM-L6-v2`** model. These embeddings were then used to build a `FAISS` index (`abstract_index.faiss`), enabling efficient semantic retrieval.
 
-### 3. Configure API Keys
+### 4. Configure API Keys
 
-Create a `.env` file from the provided template to store your API credentials.
+Create a `.env` file from the provided template to store your API credentials for services like OpenAI or Alibaba Cloud.
 
 ```bash
 # Create the .env file
 cp .env.example .env
 
 # Edit the file to add your API keys
-nano .env
+nano .env  # or use your favorite text editor
 ```
 
-### 4. Run Experiments
+### 5. Run Experiments
 
-You can now run any of the experiments. All scripts are designed to be executed from the project's root directory.
+All scripts are designed to be executed from the project's root directory. The generated survey texts will be saved in the `outputs/` directory.
 
 #### **Main Experiments**
-
-The main experiments use the full multi-agent and RAG framework.
-
 -   **To generate surveys with Qwen3-14B:**
     ```bash
     python run_experiments.py qwen_main
@@ -84,38 +87,31 @@ The main experiments use the full multi-agent and RAG framework.
     ```
 
 #### **Evaluation**
-
-To evaluate the generated outputs (e.g., from Qwen) against the reference texts using ROUGE scores:
+To evaluate the generated outputs (e.g., from the Qwen experiment) against the reference texts using ROUGE scores:
 ```bash
 python run_experiments.py evaluate_qwen
 ```
+The evaluation results will be printed to the console and saved in the `outputs/evaluations/` directory.
 
-## Repository Structure
+### Repository Structure
 
 ```
 .
-├── src/
-│   ├── agents/                   # Core agent implementations
-│   ├── data/                     # Data processing modules
-│   └── utils/                    # Utility functions (API client, config loader)
-├── experiments/
-│   ├── main/                     # Scripts for main experiments
-│   ├── qwen_ablations/           # Scripts for ablation studies
-│   └── evaluations/              # Evaluation script
-├── configs/                      # System configuration files
-├── data/                         # Data storage (ignored by Git)
-├── processed_data/
-│   ├── abstract_index.faiss
-│   ├── bib_abstracts.json
-│   ├── ... (other processed files)
-├── outputs/                      # Generated outputs (ignored by Git)
-├── .env.example                  # Environment variable template
-├── requirements.txt              # Python package dependencies
-└── README.md                     # This file
+├── src/                    # Core source code (agents, data handlers, utils)
+├── experiments/            # Experiment-running scripts
+├── configs/                # System configuration files
+├── data/                   # For raw data (ignored by Git)
+├── processed_data/         # For preprocessed data like FAISS index
+├── outputs/                # For generated outputs and evaluations (ignored by Git)
+├── .env.example            # Environment variable template
+├── requirements.txt        # Python package dependencies
+└── README.md               # This file
 ```
 
-## Acknowledgements
 
-This work utilizes the **SciReviewGen** dataset. We thank the authors for making this resource publicly available.
 
-> Kasanishi, T., Isonuma, M., Mori, J., & Sakata, I. (2023). SciReviewGen: A Large-scale Dataset for Automatic Literature Review Generation. In *Findings of the Association for Computational Linguistics: ACL 2023*.
+### License
+
+The code in this repository is licensed under the MIT License. Please see the [LICENSE](LICENSE) file for details.
+
+Note that the underlying dataset (**SciReviewGen**) used by this project has its own license (CC BY-NC 4.0), which restricts its use to non-commercial purposes only.
