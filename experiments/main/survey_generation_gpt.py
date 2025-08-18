@@ -19,13 +19,22 @@ from src.data.data_processor import DataProcessor
 from sklearn.metrics.pairwise import cosine_similarity
 
 class GPTAPIClient:
-    """GPT API 客户端"""
+    """GPT API Client"""
     
     def __init__(self, 
                  api_key: str,
                  base_url: str = 'https://api.gpt.ge/v1',
                  max_retries: int = 3,
                  retry_delay: float = 1.0):
+        """
+        Initialize GPT API client
+        
+        Args:
+            api_key: API key
+            base_url: Base API URL
+            max_retries: Maximum number of retries
+            retry_delay: Retry delay in seconds
+        """
         self.api_key = api_key
         self.base_url = base_url
         self.max_retries = max_retries
@@ -37,6 +46,7 @@ class GPTAPIClient:
         self._setup_logger()
     
     def _setup_logger(self):
+        """Configure logger"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
@@ -47,7 +57,17 @@ class GPTAPIClient:
                      prompt: str,
                      max_tokens: int = 1000,
                      temperature: float = 0.7) -> Optional[str]:
-        """Generate text using GPT API"""
+        """
+        Generate text using GPT API
+        
+        Args:
+            prompt: Input prompt text
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature
+            
+        Returns:
+            Generated text, or None if failed
+        """
         retry_count = 0
         while retry_count < self.max_retries:
             try:

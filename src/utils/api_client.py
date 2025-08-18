@@ -6,7 +6,7 @@ import time
 from typing import Optional
 
 class GPTAPIClient:
-    """GPT API 客户端"""
+    """GPT API Client"""
     
     def __init__(self, 
                  api_key: str,
@@ -14,12 +14,12 @@ class GPTAPIClient:
                  max_retries: int = 3,
                  retry_delay: float = 1.0):
         """
-        初始化客户端
+        Initialize client
         Args:
-            api_key: API密钥
-            base_url: API基础URL
-            max_retries: 最大重试次数
-            retry_delay: 重试延迟时间(秒)
+            api_key: API key
+            base_url: API base URL
+            max_retries: Maximum number of retries
+            retry_delay: Retry delay time (seconds)
         """
         self.api_key = api_key
         self.base_url = base_url
@@ -34,7 +34,7 @@ class GPTAPIClient:
         self._setup_logger()
     
     def _setup_logger(self):
-        """配置日志系统"""
+        """Configure logging system"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
@@ -46,13 +46,13 @@ class GPTAPIClient:
                      max_tokens: int = 1000,
                      temperature: float = 0.7) -> Optional[str]:
         """
-        生成文本
+        Generate text
         Args:
-            prompt: 提示词
-            max_tokens: 最大生成token数
-            temperature: 采样温度
+            prompt: Prompt text
+            max_tokens: Maximum number of tokens to generate
+            temperature: Sampling temperature
         Returns:
-            生成的文本，失败则返回None
+            Generated text, returns None if failed
         """
         retry_count = 0
         while retry_count < self.max_retries:

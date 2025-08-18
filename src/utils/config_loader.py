@@ -104,14 +104,14 @@ def validate_config(config: Dict[str, Any]) -> bool:
     for api_type in required_apis:
         api_config = get_api_config(config, api_type)
         if not api_config.get('api_key'):
-            print(f"❌ Missing API key for {api_type.upper()}")
-            print(f"   Set {api_type.upper()}_API_KEY environment variable")
+            print(f"Missing API key for {api_type.upper()}")
+            print(f"Set {api_type.upper()}_API_KEY environment variable")
             return False
     
     # Check data paths
     raw_data_path = config.get('data', {}).get('raw_data_path', './data/raw/original_survey_df.pkl')
     if not os.path.exists(raw_data_path):
-        print(f"❌ Raw data not found: {raw_data_path}")
+        print(f"Raw data not found: {raw_data_path}")
         return False
     
     return True
@@ -120,9 +120,9 @@ def validate_config(config: Dict[str, Any]) -> bool:
 if __name__ == "__main__":
     config = load_config()
     if validate_config(config):
-        print("✅ Configuration loaded successfully")
-        print(f"📊 Raw data path: {config.get('data', {}).get('raw_data_path')}")
-        print(f"📁 Output directory: {config.get('data', {}).get('output_dir')}")
+        print("Configuration loaded successfully")
+        print(f"Raw data path: {config.get('data', {}).get('raw_data_path')}")
+        print(f"Output directory: {config.get('data', {}).get('output_dir')}")
     else:
-        print("❌ Configuration validation failed")
-        print("   Please check your .env file and data paths")
+        print("Configuration validation failed")
+        print("Please check your .env file and data paths")

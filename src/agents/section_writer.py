@@ -11,26 +11,26 @@ from typing import Dict, List
 import os
 import sys
 
-# 添加项目根目录到Python路径
+# Add project root directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from lhb.utils.api_client import GPTAPIClient
 
 class SectionWriterAgent:
-    """章节正文智能体，负责生成每个章节的具体内容"""
+    """Section content agent responsible for generating specific content for each section"""
     
     def __init__(self, api_client: GPTAPIClient):
         """
-        初始化智能体
+        Initialize the agent
         Args:
-            api_client: GPT API客户端实例
+            api_client: GPT API client instance
         """
         self.api_client = api_client
         self._setup_logger()
         self._setup_output_format()
     
     def _setup_logger(self):
-        """配置日志系统"""
+        """Configure logging system"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -42,7 +42,7 @@ class SectionWriterAgent:
         self.logger = logging.getLogger(__name__)
     
     def _setup_output_format(self):
-        """设置输出格式模板"""
+        """Set output format template"""
         self.section_template = """# {title}
 
 {content}
@@ -55,12 +55,12 @@ References:
                              section_title: str, 
                              papers_info: List[Dict]) -> str:
         """
-        创建章节生成的prompt
+        Create prompt for section generation
         Args:
-            section_title: 章节标题
-            papers_info: 相关论文信息
+            section_title: Section title
+            papers_info: Related paper information
         Returns:
-            格式化的prompt
+            Formatted prompt
         """
         prompt = f"""Write a comprehensive section for a literature review paper.
 
@@ -68,12 +68,12 @@ Section Title: {section_title}
 
 Based on the following papers:
 """
-        # 添加参考文献信息
+        # Add reference information
         for i, paper in enumerate(papers_info, 1):
             prompt += f"\n[{paper['citation_id']}] {paper['title']}\n"
             prompt += f"Abstract: {paper['abstract']}\n"
 
-        # 添加写作要求
+        # Add writing requirements
         prompt += """
 Requirements:
 1. Write in formal academic style suitable for a literature review
@@ -101,23 +101,23 @@ The section should demonstrate:
                 prompt_template: str,
                 max_tokens: int = 1500) -> Optional[str]:
         """
-        生成章节内容
+        Generate section content
         Args:
-            section_title: 章节标题
-            papers_info: 相关论文信息
-            prompt_template: 提示词模板
-            max_tokens: 最大生成token数
+            section_title: Section title
+            papers_info: Related paper information
+            prompt_template: Prompt template
+            max_tokens: Maximum number of tokens to generate
         Returns:
-            格式化的章节内容
+            Formatted section content
         """
         try:
             self.logger.info(f"Generating content for section: {section_title}")
             
-            # 使用提供的模板或创建新的prompt
+            # Use provided template or create new prompt
             prompt = prompt_template if prompt_template else \
                     self._create_section_prompt(section_title, papers_info)
             
-            # 生成内容
+            # Generate content
             content = self.api_client.generate_text(
                 prompt=prompt,
                 max_tokens=max_tokens,
@@ -128,16 +128,16 @@ The section should demonstrate:
                 self.logger.error(f"Failed to generate content for {section_title}")
                 return None
             
-            # 提取引用的论文ID
+            # Extract cited paper IDs
             referenced_ids = set()
             for paper in papers_info:
                 if paper['citation_id'] in content:
                     referenced_ids.add(paper['citation_id'])
             
-            # 格式化参考文献
+            # Format references
             references = self._format_references(papers_info, referenced_ids)
             
-            # 组装完整的章节
+            # Assemble complete section
             formatted_section = self.section_template.format(
                 title=section_title,
                 content=content,
@@ -155,12 +155,12 @@ The section should demonstrate:
                          papers_info: List[Dict],
                          referenced_ids: set) -> str:
         """
-        格式化参考文献列表
+        Format reference list
         Args:
-            papers_info: 论文信息列表
-            referenced_ids: 被引用的论文ID集合
+            papers_info: List of paper information
+            referenced_ids: Set of referenced paper IDs
         Returns:
-            格式化的参考文献字符串
+            Formatted reference string
         """
         references = []
         for paper in papers_info:
@@ -175,19 +175,19 @@ The section should demonstrate:
                                  prompt_templates: Dict[str, str] = None,
                                  max_workers: int = 3) -> Dict[str, str]:
         """
-        并行生成多个章节
+        Generate multiple sections in parallel
         Args:
-            sections_info: 章节信息字典 {章节标题: 论文列表}
-            prompt_templates: 提示词模板字典 {章节标题: 提示词}
-            max_workers: 最大并行数
+            sections_info: Section information dictionary {section title: paper list}
+            prompt_templates: Prompt template dictionary {section title: prompt}
+            max_workers: Maximum number of parallel workers
         Returns:
-            章节内容字典 {章节标题: 内容}
+            Section content dictionary {section title: content}
         """
         results = {}
         prompt_templates = prompt_templates or {}
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # 创建任务
+            # Create tasks
             future_to_section = {
                 executor.submit(
                     self.generate,
@@ -198,7 +198,7 @@ The section should demonstrate:
                 for section_title, papers_info in sections_info.items()
             }
             
-            # 收集结果
+            # Collect results
             for future in concurrent.futures.as_completed(future_to_section):
                 section_title = future_to_section[future]
                 try:
@@ -216,10 +216,10 @@ The section should demonstrate:
                      sections_content: Dict[str, str],
                      output_path: str):
         """
-        保存生成的章节内容
+        Save generated section content
         Args:
-            sections_content: 章节内容字典
-            output_path: 输出文件路径
+            sections_content: Section content dictionary
+            output_path: Output file path
         """
         try:
             with open(output_path, 'w') as f:

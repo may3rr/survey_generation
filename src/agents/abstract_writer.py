@@ -10,24 +10,24 @@ from typing import Dict, List
 import os
 import sys
 
-# 添加项目根目录到Python路径
+# Add project root directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from lhb.utils.api_client import GPTAPIClient
 class AbstractWriterAgent:
-    """摘要编写智能体，负责生成综述论文的摘要"""
+    """Abstract writing agent responsible for generating literature review abstracts"""
     
     def __init__(self, api_client: GPTAPIClient):
         """
-        初始化智能体
+        Initialize the agent
         Args:
-            api_client: GPT API客户端实例
+            api_client: GPT API client instance
         """
         self.api_client = api_client
         self._setup_logger()
     
     def _setup_logger(self):
-        """配置日志系统"""
+        """Configure logging system"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
@@ -38,22 +38,22 @@ class AbstractWriterAgent:
                               survey_title: str, 
                               allocation_results: Dict) -> str:
         """
-        创建生成摘要的prompt
+        Create prompt for generating abstract
         Args:
-            survey_title: 综述标题
-            allocation_results: 论文分配结果
+            survey_title: Literature review title
+            allocation_results: Paper allocation results
         Returns:
-            格式化的prompt
+            Formatted prompt
         """
         prompt = f"""Please write an academic abstract for a literature review paper titled "{survey_title}".
 
 The paper covers the following sections and key papers:
 """
         
-        # 添加每个章节的信息
+        # Add information for each section
         for section_title, papers in allocation_results.items():
             prompt += f"\n{section_title}:\n"
-            for paper in papers['allocated_papers'][:3]:  # 每个章节选择前3篇最相关的论文
+            for paper in papers['allocated_papers'][:3]:  # Select top 3 most relevant papers for each section
                 prompt += f"- {paper['title']}\n"
 
         prompt += """
@@ -77,21 +77,21 @@ Ensure the abstract is:
                 allocation_results: Dict,
                 max_tokens: int = 500) -> str:
         """
-        生成综述摘要
+        Generate literature review abstract
         Args:
-            survey_title: 综述标题
-            allocation_results: 论文分配结果
-            max_tokens: 生成的最大token数
+            survey_title: Literature review title
+            allocation_results: Paper allocation results
+            max_tokens: Maximum number of tokens to generate
         Returns:
-            生成的摘要
+            Generated abstract
         """
         try:
             self.logger.info("Generating abstract...")
             
-            # 创建prompt
+            # Create prompt
             prompt = self._create_abstract_prompt(survey_title, allocation_results)
             
-            # 调用API生成摘要
+            # Call API to generate abstract
             abstract = self.api_client.generate_text(
                 prompt=prompt,
                 max_tokens=max_tokens

@@ -72,6 +72,48 @@ cp .env.example .env
 nano .env  # or use your favorite text editor
 ```
 
+#### Using OpenRouter as API Provider
+
+If you want to use OpenRouter instead of the default API providers, you can easily switch by modifying the configuration:
+
+**Step 1: Update your `.env` file**
+
+Replace the API configuration in your `.env` file:
+
+```bash
+# OpenRouter API Configuration
+GPT_API_KEY=your_openrouter_api_key_here
+GPT_BASE_URL=https://openrouter.ai/api/v1
+GPT_MODEL=qwen/qwen3-14b
+
+# You can also use other models available on OpenRouter
+# GPT_MODEL=anthropic/claude-3-haiku
+# GPT_MODEL=openai/gpt-4o-mini
+# GPT_MODEL=meta-llama/llama-3.1-8b-instruct
+```
+
+**Step 2: Update the configuration file (Optional)**
+
+You can also modify `configs/config.yaml` to set OpenRouter as default:
+
+```yaml
+api:
+  gpt:
+    base_url: "https://openrouter.ai/api/v1"
+    model: "qwen/qwen3-14b"  # or any other model from OpenRouter
+    max_tokens: 1500
+    temperature: 0.7
+    max_retries: 3
+    retry_delay: 1.0
+```
+
+
+
+**Available Models on OpenRouter:**
+- `qwen/qwen3-14b` - Qwen 3 14B model
+- `openai/gpt-4o-mini` - OpenAI GPT-4o Mini
+- And many more available at [OpenRouter Models](https://openrouter.ai/models)
+
 ### 5. Run Experiments
 
 All scripts are designed to be executed from the project's root directory. The generated survey texts will be saved in the `outputs/` directory.

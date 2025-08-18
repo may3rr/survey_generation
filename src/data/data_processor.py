@@ -9,33 +9,33 @@ import faiss
 import json
 import logging
 from tqdm import tqdm
-# 在文件顶部添加以下导入
+# Add the following import at the top of the file
 from sklearn.metrics.pairwise import cosine_similarity
 
 class DataProcessor:
     def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
         """
-        初始化数据处理器
+        Initialize data processor
         Args:
-            model_name: 用于文本嵌入的模型名称
+            model_name: Model name for text embedding
         """
-        # 基础数据存储
+        # Basic data storage
         self.raw_data = None
         self.bib_abstracts_dict = {}  # citation_id -> abstract
         self.bib_titles_dict = {}     # citation_id -> title
-        self.citation_stats = {}      # citation_id -> 被引用次数
+        self.citation_stats = {}      # citation_id -> citation count
         
-        # 向量检索相关
+        # Vector retrieval related
         self.model = SentenceTransformer(model_name)
         self.abstract_embeddings = None
-        self.citation_ids = []  # 保持向量顺序
+        self.citation_ids = []  # maintain vector order
         self.index = None
         
-        # 设置日志
+        # Setup logging
         self._setup_logger()
     
     def _setup_logger(self):
-        """配置日志系统"""
+        """Configure logging system"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -48,9 +48,9 @@ class DataProcessor:
 
     def load_data(self, pkl_path: str) -> None:
         """
-        加载并处理原始数据
+        Load and process raw data
         Args:
-            pkl_path: PKL文件路径
+            pkl_path: Path to PKL file
         """
         try:
             self.logger.info(f"Loading data from {pkl_path}")
@@ -62,26 +62,26 @@ class DataProcessor:
             raise
 
     def _process_citations(self) -> None:
-        """处理所有引用信息"""
+        """Process all citation information"""
         self.logger.info("Processing citations...")
         
-        # 重置数据结构
+        # Reset data structures
         self.bib_abstracts_dict.clear()
         self.bib_titles_dict.clear()
         self.citation_stats.clear()
         
         for _, row in tqdm(self.raw_data.iterrows(), total=len(self.raw_data)):
-            # 处理摘要
+            # Process abstracts
             bib_abstracts_list = row['bib_abstracts']
             for bib_dict in bib_abstracts_list:
                 self.bib_abstracts_dict.update(bib_dict)
             
-            # 处理标题
+            # Process titles
             bib_titles_list = row['bib_titles']
             for bib_dict in bib_titles_list:
                 self.bib_titles_dict.update(bib_dict)
             
-            # 统计引用次数
+            # Count citations
             for bib_dict in bib_abstracts_list:
                 for citation_id in bib_dict.keys():
                     self.citation_stats[citation_id] = self.citation_stats.get(citation_id, 0) + 1
@@ -89,10 +89,10 @@ class DataProcessor:
         self.logger.info(f"Processed {len(self.bib_abstracts_dict)} unique citations")
 
     def create_vector_store(self) -> None:
-        """创建向量存储"""
+        """Create vector store"""
         self.logger.info("Creating vector store...")
         
-        # 准备数据
+        # Prepare data
         abstracts = []
         self.citation_ids = []
         
@@ -100,11 +100,11 @@ class DataProcessor:
             abstracts.append(abstract)
             self.citation_ids.append(cid)
         
-        # 计算嵌入向量
+        # Calculate embedding vectors
         try:
             self.abstract_embeddings = self.model.encode(abstracts, show_progress_bar=True)
             
-            # 创建FAISS索引
+            # Create FAISS index
             dimension = self.abstract_embeddings.shape[1]
             self.index = faiss.IndexFlatL2(dimension)
             self.index.add(self.abstract_embeddings.astype('float32'))
@@ -116,14 +116,14 @@ class DataProcessor:
 
     def save_processed_data(self, save_dir: str) -> None:
         """
-        保存处理后的数据
+        Save processed data
         Args:
-            save_dir: 保存目录
+            save_dir: Save directory
         """
         try:
             os.makedirs(save_dir, exist_ok=True)
             
-            # 保存基础数据
+            # Save basic data
             with open(f"{save_dir}/bib_abstracts.json", 'w') as f:
                 json.dump(self.bib_abstracts_dict, f)
             
@@ -133,7 +133,7 @@ class DataProcessor:
             with open(f"{save_dir}/citation_stats.json", 'w') as f:
                 json.dump(self.citation_stats, f)
             
-            # 保存向量检索相关数据
+            # Save vector retrieval related data
             if self.index is not None:
                 faiss.write_index(self.index, f"{save_dir}/abstract_index.faiss")
                 np.save(f"{save_dir}/citation_ids.npy", np.array(self.citation_ids))
@@ -145,12 +145,12 @@ class DataProcessor:
 
     def load_processed_data(self, save_dir: str) -> None:
         """
-        加载处理后的数据
+        Load processed data
         Args:
-            save_dir: 数据目录
+            save_dir: Data directory
         """
         try:
-            # 加载基础数据
+            # Load basic data
             with open(f"{save_dir}/bib_abstracts.json", 'r') as f:
                 self.bib_abstracts_dict = json.load(f)
             
@@ -160,7 +160,7 @@ class DataProcessor:
             with open(f"{save_dir}/citation_stats.json", 'r') as f:
                 self.citation_stats = json.load(f)
             
-            # 加载向量检索相关数据
+            # Load vector retrieval related data
             if os.path.exists(f"{save_dir}/abstract_index.faiss"):
                 self.index = faiss.read_index(f"{save_dir}/abstract_index.faiss")
                 self.citation_ids = np.load(f"{save_dir}/citation_ids.npy").tolist()
@@ -172,44 +172,44 @@ class DataProcessor:
 
     def get_abstracts_by_ids(self, citation_ids: List[str]) -> Dict[str, str]:
         """
-        获取指定引用ID的摘要
+        Get abstracts for specified citation IDs
         Args:
-            citation_ids: 引用ID列表
+            citation_ids: List of citation IDs
         Returns:
-            ID到摘要的映射字典
+            Dictionary mapping IDs to abstracts
         """
         return {cid: self.bib_abstracts_dict.get(cid, "") for cid in citation_ids}
 
     def get_titles_by_ids(self, citation_ids: List[str]) -> Dict[str, str]:
         """
-        获取指定引用ID的标题
+        Get titles for specified citation IDs
         Args:
-            citation_ids: 引用ID列表
+            citation_ids: List of citation IDs
         Returns:
-            ID到标题的映射字典
+            Dictionary mapping IDs to titles
         """
         return {cid: self.bib_titles_dict.get(cid, "") for cid in citation_ids}
 
     def search_similar_abstracts(self, query: str, k: int = 5) -> List[Dict]:
         """
-        搜索与查询最相似的摘要
+        Search for abstracts most similar to the query
         Args:
-            query: 查询文本
-            k: 返回结果数量
+            query: Query text
+            k: Number of results to return
         Returns:
-            相似文献列表，包含ID、标题、摘要和相似度分数
+            List of similar papers containing ID, title, abstract and similarity score
         """
         if self.index is None:
             raise ValueError("Vector store not created. Call create_vector_store() first.")
         
         try:
-            # 编码查询
+            # Encode query
             query_vector = self.model.encode([query])
             
-            # 搜索最相似的向量
+            # Search for most similar vectors
             distances, indices = self.index.search(query_vector.astype('float32'), k)
             
-            # 整理结果
+            # Organize results
             results = []
             for dist, idx in zip(distances[0], indices[0]):
                 citation_id = self.citation_ids[idx]
@@ -228,43 +228,43 @@ class DataProcessor:
 
     def get_citation_stats(self, citation_id: str) -> Optional[int]:
         """
-        获取指定引用的被引用次数
+        Get citation count for specified citation ID
         Args:
-            citation_id: 引用ID
+            citation_id: Citation ID
         Returns:
-            被引用次数，如果不存在返回None
+            Citation count, or None if not found
         """
         return self.citation_stats.get(citation_id)
     
     def search_in_papers(self, query: str, papers: List[Dict], k: int = 5) -> List[Dict]:
         """
-        在指定的论文集合中搜索相似论文
+        Search for similar papers within a specified paper collection
         Args:
-            query: 查询文本
-            papers: 论文列表 [{citation_id, title, abstract}, ...]
-            k: 返回结果数量
+            query: Query text
+            papers: List of papers [{citation_id, title, abstract}, ...]
+            k: Number of results to return
         Returns:
-            相似论文列表
+            List of similar papers
         """
         try:
             if not papers:
                 self.logger.warning("Empty paper list provided for search")
                 return []
 
-            # 编码查询文本
+            # Encode query text
             query_vector = self.model.encode(query, convert_to_numpy=True).reshape(1, -1)
             
-            # 编码所有论文的标题和摘要
+            # Encode all paper titles and abstracts
             paper_texts = [f"{p['title']}. {p['abstract']}" for p in papers]
             paper_vectors = self.model.encode(paper_texts, convert_to_numpy=True)
             
-            # 计算相似度
+            # Calculate similarity
             similarities = cosine_similarity(query_vector, paper_vectors)[0]
             
-            # 获取top-k的索引
+            # Get top-k indices
             top_k_indices = np.argsort(similarities)[-k:][::-1]
             
-            # 整理结果
+            # Organize results
             results = []
             for idx in top_k_indices:
                 paper = papers[idx].copy()

@@ -8,20 +8,20 @@ from typing import Dict, List
 import os
 import sys
 
-# 添加项目根目录到Python路径
+# Add project root directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from lhb.utils.api_client import GPTAPIClient
 
 class PromptWriterAgent:
-    """正文提示词编写智能体，负责生成章节内容的提示词"""
+    """Prompt writing agent responsible for generating section content prompts"""
     
     def __init__(self):
         self._setup_logger()
         self._load_templates()
     
     def _setup_logger(self):
-        """配置日志系统"""
+        """Configure logging system"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
@@ -29,7 +29,7 @@ class PromptWriterAgent:
         self.logger = logging.getLogger(__name__)
     
     def _load_templates(self):
-        """加载基础模板"""
+        """Load base templates"""
         self.base_template = """As an academic writer, please write a comprehensive section for a literature review paper.
 
 Title: "{title}"
@@ -59,11 +59,11 @@ Output Format Example:
 
     def _analyze_section_type(self, section_title: str) -> str:
         """
-        分析章节类型，添加特定的提示词
+        Analyze section type and add specific prompts
         Args:
-            section_title: 章节标题
+            section_title: Section title
         Returns:
-            章节特定的提示词
+            Section-specific prompts
         """
         section_lower = section_title.lower()
         
@@ -95,16 +95,16 @@ Output Format Example:
                 section_title: str,
                 papers_info: List[Dict]) -> str:
         """
-        生成章节的提示词
+        Generate prompts for the section
         Args:
-            survey_title: 综述标题
-            section_title: 章节标题
-            papers_info: 相关论文信息列表
+            survey_title: Survey title
+            section_title: Section title
+            papers_info: List of related paper information
         Returns:
-            格式化的提示词
+            Formatted prompt
         """
         try:
-            # 整理论文信息
+            # Organize paper information
             papers_text = ""
             for i, paper in enumerate(papers_info, 1):
                 papers_text += f"""Paper {i} [ID: {paper['citation_id']}]:
@@ -113,10 +113,10 @@ Abstract: {paper['abstract']}
 ---
 """
             
-            # 获取章节特定的提示词
+            # Get section-specific prompts
             section_specific = self._analyze_section_type(section_title)
             
-            # 组合完整的prompt
+            # Combine complete prompt
             prompt = self.base_template.format(
                 title=survey_title,
                 section=section_title,

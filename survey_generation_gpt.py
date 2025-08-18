@@ -12,7 +12,7 @@ import concurrent.futures
 from sklearn.metrics.pairwise import cosine_similarity
 
 class GPTAPIClient:
-    """GPT API 客户端"""
+    """GPT API Client"""
     
     def __init__(self, 
                  api_key: str,

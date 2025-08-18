@@ -10,14 +10,14 @@ from typing import Dict, List
 import os
 import sys
 import pandas as pd
-# 添加项目根目录到Python路径
+# Add project root directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from lhb.utils.api_client import GPTAPIClient
 
 
 class PaperAllocationAgent:
-    """文献分配智能体"""
+    """Paper Allocation Agent"""
     
     def __init__(self, data_processor: DataProcessor):
         self.processor = data_processor
@@ -32,20 +32,20 @@ class PaperAllocationAgent:
 
     def get_paper_pool(self, df: pd.DataFrame, title: str) -> Dict:
         """
-        获取特定综述的参考文献池
+        Get reference paper pool for a specific survey
         Args:
-            df: 原始数据集
-            title: 综述标题
+            df: Original dataset
+            title: Survey title
         Returns:
-            参考文献池
+            Reference paper pool
         """
-        # 找到对应的综述
+        # Find the corresponding survey
         survey = df[df['title'] == title].iloc[0]
         
-        # 获取该综述的所有参考文献
+        # Get all references for this survey
         paper_pool = {}
         
-        # 从bib_titles和bib_abstracts中提取信息
+        # Extract information from bib_titles and bib_abstracts
         for bib_dict in survey['bib_titles']:
             for paper_id, title in bib_dict.items():
                 if paper_id not in paper_pool:
@@ -60,25 +60,25 @@ class PaperAllocationAgent:
 
     def allocate(self, section_title: str, survey_title: str, survey_df: pd.DataFrame, k: int = 5) -> Dict:
         """
-        为指定章节分配参考文献
+        Allocate references for specified section
         Args:
-            section_title: 章节标题
-            survey_title: 综述标题
-            survey_df: 原始数据集
-            k: 返回的相关论文数量
+            section_title: Section title
+            survey_title: Survey title
+            survey_df: Original dataset
+            k: Number of related papers to return
         Returns:
-            分配结果的字典
+            Dictionary of allocation results
         """
         try:
-            # 获取该综述的参考文献池
+            # Get reference pool for this survey
             paper_pool = self.get_paper_pool(survey_df, survey_title)
             self.logger.info(f"Found {len(paper_pool)} papers in the reference pool")
             
-            # 构造搜索查询
+            # Construct search query
             query = f"{survey_title} {section_title}"
             
-            # 在参考文献池中搜索
-            # 将参考文献池的论文转换为processor可处理的格式
+            # Search in reference pool
+            # Convert reference pool papers to processor-compatible format
             pool_papers = [
                 {
                     'citation_id': pid,
@@ -88,7 +88,7 @@ class PaperAllocationAgent:
                 for pid, info in paper_pool.items()
             ]
             
-            # 使用processor的向量相似度搜索
+            # Use processor's vector similarity search
             similar_papers = self.processor.search_in_papers(
                 query=query,
                 papers=pool_papers,

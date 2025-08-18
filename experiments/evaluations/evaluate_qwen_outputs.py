@@ -11,19 +11,19 @@ from rouge_score import rouge_scorer
 from typing import Dict, List, Optional
 import logging
 import nltk
-nltk.download('punkt')  # 用于分句
+nltk.download('punkt')  # For sentence tokenization
 class SurveyEvaluator:
     """Survey evaluation class"""
     
     def __init__(self):
         self._setup_logger()
-        # 使用与论文相同的ROUGE配置
+        # Use the same ROUGE configuration as in the paper
         self.scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
         self.metrics = ['rouge1', 'rouge2', 'rougeL']
         self.score_types = ['precision', 'recall', 'fmeasure']
 
     def _setup_logger(self):
-        """设置日志"""
+        """Setup logger"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
@@ -31,7 +31,7 @@ class SurveyEvaluator:
         self.logger = logging.getLogger(__name__)
 
     def load_generated_survey(self, file_path: str) -> Optional[Dict]:
-        """加载生成的综述"""
+        """Load generated survey"""
         try:
             with open(file_path, 'r') as f:
                 return json.load(f)
@@ -40,18 +40,18 @@ class SurveyEvaluator:
             return None
 
     def postprocess_text(self, text: str) -> str:
-        """后处理文本，清理markdown语法和多余的换行符"""
-        # 清理文本
+        """Post-process text, clean markdown syntax and extra line breaks"""
+        # Clean text
         text = text.strip()
         
-        # 清除markdown标记
-        # 移除以#开头的标题标记
+        # Clean markdown markers
+        # Remove title markers starting with #
         text = ' '.join(line.lstrip('#').strip() for line in text.split('\n'))
         
-        # 清理连续的换行符和空格
+        # Clean consecutive line breaks and spaces
         text = ' '.join(text.split())
         
-        # 使用简单的规则分句
+        # Use simple rules for sentence splitting
         sentences = []
         current = ""
         
@@ -67,33 +67,33 @@ class SurveyEvaluator:
         return "\n".join(sentences)
 
     def evaluate_survey(self, generated_survey: Dict, original_df: pd.DataFrame) -> Dict:
-        """评估生成的综述 - 使用整体评估方法"""
+        """Evaluate generated survey"""
         try:
-            # 找到原始综述
+            # Find original survey
             original_survey = original_df[original_df['title'] == generated_survey['title']]
             if len(original_survey) == 0:
                 self.logger.error(f"Original survey not found: {generated_survey['title']}")
                 return {}
             original_survey = original_survey.iloc[0]
             
-            # 将所有section的文本合并成一个完整文本
+            # Merge all section texts into one complete text
             generated_full_text = ""
             original_full_text = ""
             
-            # 收集所有sections的文本
+            # Collect texts from all sections
             for section_title, generated_content in generated_survey['sections'].items():
                 if section_title in original_survey['section']:
                     section_index = original_survey['section'].index(section_title)
                     if section_index < len(original_survey['text']):
-                        # 添加分隔符以保持section的边界
+                        # Add separator to maintain section boundaries
                         generated_full_text += generated_content + "\n\n"
                         original_full_text += original_survey['text'][section_index] + "\n\n"
             
-            # 文本后处理
+            # Text post-processing
             generated_full_text = self.postprocess_text(generated_full_text)
             original_full_text = self.postprocess_text(original_full_text)
             
-            # 计算整体ROUGE分数
+            # Calculate overall ROUGE scores
             try:
                 scores = self.scorer.score(original_full_text, generated_full_text)
                 return {
@@ -115,27 +115,27 @@ class SurveyEvaluator:
             return {}
 
     def calculate_overall_average(self, all_scores: List[Dict]) -> Dict:
-        """计算所有文献的总体平均分数"""
+        """Calculate overall average scores for all papers"""
         try:
             if not all_scores:
                 self.logger.warning("No scores to average")
                 return {metric: {score_type: 0.0 for score_type in self.score_types}
                        for metric in self.metrics}
             
-            # 初始化累计值
+            # Initialize accumulated values
             total_scores = {
                 metric: {score_type: 0.0 for score_type in self.score_types}
                 for metric in self.metrics
             }
             
-            # 累加所有分数
+            # Add up all scores
             for doc_scores in all_scores:
                 if 'overall' in doc_scores:
                     for metric in self.metrics:
                         for score_type in self.score_types:
                             total_scores[metric][score_type] += doc_scores['overall'][metric][score_type]
             
-            # 计算平均值
+            # Calculate average
             num_docs = len(all_scores)
             if num_docs > 0:
                 for metric in self.metrics:
@@ -150,7 +150,7 @@ class SurveyEvaluator:
                    for metric in self.metrics}
 
     def print_overall_scores(self, scores: Dict):
-        """打印总体平均分数"""
+        """Print overall average scores"""
         print("\nOverall ROUGE Scores:")
         for metric, metric_scores in scores.items():
             print(f"\n{metric}:")
@@ -162,7 +162,7 @@ def main():
         evaluator = SurveyEvaluator()
         project_root = Path(__file__).parent.parent.parent
         
-        # 使用配置文件中的路径
+        # Use paths from config file
         config_path = project_root / 'configs/config.yaml'
         if config_path.exists():
             import yaml
@@ -174,36 +174,36 @@ def main():
             raw_data_path = 'data/raw/original_survey_df.pkl'
             output_dir = 'qwen3_output'
         
-        # 加载原始数据
+        # Load original data
         raw_data_full_path = project_root / raw_data_path
         if not raw_data_full_path.exists():
-            print(f"原始数据文件不存在: {raw_data_full_path}")
-            print("请先运行数据准备脚本: python prepare_data.py")
+            print(f"Original data file does not exist: {raw_data_full_path}")
+            print("Please run data preparation script first: python prepare_data.py")
             return
             
         original_df = pd.read_pickle(raw_data_full_path)
         
-        # 检查输出目录
+        # Check output directory
         output_full_path = project_root / output_dir
         generated_files = list(output_full_path.glob('*generated.json'))
         
         if not generated_files:
-            print(f"未找到生成的综述文件在: {output_full_path}")
-            print("请先运行实验生成综述")
+            print(f"No generated survey files found in: {output_full_path}")
+            print("Please run experiment to generate surveys first")
             return
             
-        print(f"找到 {len(generated_files)} 个生成的综述文件")
+        print(f"Found {len(generated_files)} generated survey files")
         
-        # 评估所有生成的综述
+        # Evaluate all generated surveys
         all_scores = []
         for input_path in generated_files:
-            print(f"正在评估: {input_path.name}")
+            print(f"Evaluating: {input_path.name}")
             generated_survey = evaluator.load_generated_survey(str(input_path))
             if generated_survey:
                 scores = evaluator.evaluate_survey(generated_survey, original_df)
                 if scores:
                     all_scores.append(scores)
-                    # 为每个生成的综述保存单独的评估结果
+                    # Save individual evaluation results for each generated survey
                     individual_output_path = output_full_path / f"{input_path.stem}_evaluation.json"
                     with open(individual_output_path, 'w') as f:
                         json.dump({
@@ -212,13 +212,13 @@ def main():
                         }, f, indent=2)
         
         if all_scores:
-            # 计算并打印总体平均分数
+            # Calculate and print overall average scores
             overall_average = evaluator.calculate_overall_average(all_scores)
             evaluator.print_overall_scores(overall_average)
         else:
-            print("没有成功评估任何综述文件")
+            print("No survey files were successfully evaluated")
         
-        # 保存评估结果
+        # Save evaluation results
         output_path = output_full_path / 'overall_evaluation.json'
         with open(output_path, 'w') as f:
             json.dump({
