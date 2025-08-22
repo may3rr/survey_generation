@@ -18,7 +18,7 @@ from src.data.data_processor import DataProcessor
 import concurrent.futures
 
 class GPTAPIClient:
-    """GPT API 客户端"""
+    """GPT API Client"""
 
     def __init__(self,
                  api_key: str,
@@ -50,7 +50,7 @@ class GPTAPIClient:
         retry_count = 0
         while retry_count < self.max_retries:
             try:
-                # 构建请求体
+                # Build request body
                 request_body = {
                     'model': 'qwen3-14b',
                     'messages': [
@@ -58,20 +58,20 @@ class GPTAPIClient:
                     ],
                     'temperature': temperature,
                     'max_tokens': max_tokens,
-                    # 将 enable_thinking 直接放在根级别
+                    # Put enable_thinking at root level
                     'enable_thinking': False
                 }
 
                 response = requests.post(
                     f'{self.base_url}/chat/completions',
                     headers=self.headers,
-                    json=request_body, # 使用构建好的请求体
+                    json=request_body, # Use constructed request body
                     timeout=60
                 )
                 response.raise_for_status()
                 result = response.json()
                 self.logger.info("Successfully generated text")
-                # 检查响应结构，确保能正确提取内容
+                # Check response structure to ensure correct content extraction
                 if 'choices' in result and len(result['choices']) > 0 and 'message' in result['choices'][0] and 'content' in result['choices'][0]['message']:
                     return result['choices'][0]['message']['content']
                 else:
@@ -82,13 +82,13 @@ class GPTAPIClient:
                 retry_count += 1
                 if retry_count < self.max_retries:
                     self.logger.warning(f"API call failed (attempt {retry_count}/{self.max_retries}): {str(e)}")
-                    # 打印完整的错误响应文本，以便调试
+                    # Print full error response text for debugging
                     if hasattr(e, 'response') and hasattr(e.response, 'text'):
                          self.logger.warning(f"API Response Text: {e.response.text}")
                     time.sleep(self.retry_delay)
                 else:
                     self.logger.error(f"API call failed after {self.max_retries} attempts: {str(e)}")
-                    # 打印完整的错误响应文本，以便调试
+                    # Print full error response text for debugging
                     if hasattr(e, 'response') and hasattr(e.response, 'text'):
                          self.logger.error(f"API Response Text: {e.response.text}")
                     return None
