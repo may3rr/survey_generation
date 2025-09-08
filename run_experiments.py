@@ -59,6 +59,16 @@ def run_experiment(experiment_name, num_surveys=2):
     print(f"Running {experiment_name}: {experiments[experiment_name]['description']}")
     print("-" * 50)
     
+    # Debug: Print API configuration
+    print("🔍 API Configuration Check:")
+    print(f"  GPT_API_KEY: {os.getenv('GPT_API_KEY', 'NOT SET')}")
+    print(f"  GPT_BASE_URL: {os.getenv('GPT_BASE_URL', 'NOT SET')}")
+    print(f"  GPT_MODEL: {os.getenv('GPT_MODEL', 'NOT SET')}")
+    print(f"  QWEN_API_KEY: {os.getenv('QWEN_API_KEY', 'NOT SET')}")
+    print(f"  QWEN_BASE_URL: {os.getenv('QWEN_BASE_URL', 'NOT SET')}")
+    print(f"  QWEN_MODEL: {os.getenv('QWEN_MODEL', 'NOT SET')}")
+    print("-" * 50)
+    
     # Change to project root
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     

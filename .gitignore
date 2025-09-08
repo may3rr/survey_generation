@@ -99,3 +99,5 @@ outputs/
 qwen3_output/
 processed_data/
 *.rar
+
+*.json

@@ -11,6 +11,7 @@ class GPTAPIClient:
     def __init__(self, 
                  api_key: str,
                  base_url: str = 'https://api.gpt.ge/v1',
+                 model: str = 'gpt-5-mini-minimal',
                  max_retries: int = 3,
                  retry_delay: float = 1.0):
         """
@@ -18,11 +19,13 @@ class GPTAPIClient:
         Args:
             api_key: API key
             base_url: API base URL
+            model: Model name to use
             max_retries: Maximum number of retries
             retry_delay: Retry delay time (seconds)
         """
         self.api_key = api_key
-        self.base_url = base_url
+        self.base_url = base_url.rstrip('/')  # Remove trailing slash
+        self.model = model
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         
@@ -57,11 +60,14 @@ class GPTAPIClient:
         retry_count = 0
         while retry_count < self.max_retries:
             try:
+                # Fix URL construction to avoid duplicate /v1
+                chat_url = f'{self.base_url}/chat/completions' if self.base_url.endswith('/v1') else f'{self.base_url}/v1/chat/completions'
+                
                 response = requests.post(
-                    f'{self.base_url}/chat/completions',
+                    chat_url,
                     headers=self.headers,
                     json={
-                        'model': 'gpt-4o-mini',
+                        'model': self.model,
                         'messages': [
                             {'role': 'user', 'content': prompt}
                         ],

@@ -172,7 +172,7 @@ def main():
             output_dir = config.get('output', {}).get('directory', 'qwen3_output')
         else:
             raw_data_path = 'data/raw/original_survey_df.pkl'
-            output_dir = 'qwen3_output'
+            output_dir = 'outputtest'
         
         # Load original data
         raw_data_full_path = project_root / raw_data_path

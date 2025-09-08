@@ -3,14 +3,14 @@
 import os
 import pandas as pd
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, CrossEncoder
 from typing import List, Dict, Union, Optional
 import faiss
 import json
 import logging
 from tqdm import tqdm
-# Add the following import at the top of the file
 from sklearn.metrics.pairwise import cosine_similarity
+from rank_bm25 import BM25Okapi
 
 class DataProcessor:
     def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
@@ -26,10 +26,17 @@ class DataProcessor:
         self.citation_stats = {}      # citation_id -> citation count
         
         # Vector retrieval related
-        self.model = SentenceTransformer(model_name)
+        self.model = None  # Initialize as None, load only when needed
+        self.model_name = model_name
         self.abstract_embeddings = None
         self.citation_ids = []  # maintain vector order
         self.index = None
+        
+        # BM25 indexing
+        self.bm25_index = None
+        
+        # Re-ranking model  
+        self.reranker = None  # Initialize as None, load only when needed
         
         # Setup logging
         self._setup_logger()
@@ -45,6 +52,29 @@ class DataProcessor:
             ]
         )
         self.logger = logging.getLogger(__name__)
+        
+    def _load_sentence_transformer(self):
+        """Load SentenceTransformer model only when needed"""
+        if self.model is None:
+            try:
+                self.logger.info(f"Loading SentenceTransformer model: {self.model_name}")
+                self.model = SentenceTransformer(self.model_name)
+                self.logger.info("SentenceTransformer model loaded successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to load SentenceTransformer model: {e}")
+                raise
+    
+    def _load_reranker(self):
+        """Load CrossEncoder reranker only when needed"""
+        if self.reranker is None:
+            try:
+                self.logger.info("Loading CrossEncoder reranker model...")
+                self.reranker = CrossEncoder('BAAI/bge-reranker-large')
+                self.logger.info("CrossEncoder reranker loaded successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to load CrossEncoder reranker: {e}")
+                self.logger.warning("Will skip re-ranking functionality")
+                # Don't raise, just log warning so the system can still work without re-ranking
 
     def load_data(self, pkl_path: str) -> None:
         """
@@ -102,12 +132,16 @@ class DataProcessor:
         
         # Calculate embedding vectors
         try:
+            self._load_sentence_transformer()  # Load model only when needed
             self.abstract_embeddings = self.model.encode(abstracts, show_progress_bar=True)
             
             # Create FAISS index
             dimension = self.abstract_embeddings.shape[1]
             self.index = faiss.IndexFlatL2(dimension)
             self.index.add(self.abstract_embeddings.astype('float32'))
+            
+            # Build BM25 index
+            self._build_bm25_index()
             
             self.logger.info(f"Successfully created vector store with {len(abstracts)} vectors")
         except Exception as e:
@@ -165,6 +199,9 @@ class DataProcessor:
                 self.index = faiss.read_index(f"{save_dir}/abstract_index.faiss")
                 self.citation_ids = np.load(f"{save_dir}/citation_ids.npy").tolist()
             
+            # Build BM25 index after loading data
+            self._build_bm25_index()
+            
             self.logger.info(f"Successfully loaded processed data from {save_dir}")
         except Exception as e:
             self.logger.error(f"Error loading processed data: {str(e)}")
@@ -204,6 +241,7 @@ class DataProcessor:
         
         try:
             # Encode query
+            self._load_sentence_transformer()  # Load model only when needed
             query_vector = self.model.encode([query])
             
             # Search for most similar vectors
@@ -252,6 +290,7 @@ class DataProcessor:
                 return []
 
             # Encode query text
+            self._load_sentence_transformer()  # Load model only when needed
             query_vector = self.model.encode(query, convert_to_numpy=True).reshape(1, -1)
             
             # Encode all paper titles and abstracts
@@ -277,3 +316,108 @@ class DataProcessor:
         except Exception as e:
             self.logger.error(f"Error in paper search: {str(e)}")
             return []
+
+    def _build_bm25_index(self) -> None:
+        """Build BM25 index for keyword-based search"""
+        self.logger.info("Building BM25 index...")
+        
+        try:
+            # Prepare corpus by combining title and abstract
+            corpus = []
+            for cid in self.citation_ids:
+                title = self.bib_titles_dict.get(cid, "")
+                abstract = self.bib_abstracts_dict.get(cid, "")
+                text = f"{title} {abstract}".strip()
+                # Simple tokenization (splitting on spaces)
+                tokens = text.lower().split()
+                corpus.append(tokens)
+            
+            # Create BM25 index
+            self.bm25_index = BM25Okapi(corpus)
+            self.logger.info(f"Successfully built BM25 index with {len(corpus)} documents")
+            
+        except Exception as e:
+            self.logger.error(f"Error building BM25 index: {str(e)}")
+            raise
+
+    def search_bm25(self, query: str, k: int = 20) -> List[Dict]:
+        """
+        Search using BM25 keyword-based search
+        Args:
+            query: Query text
+            k: Number of results to return
+        Returns:
+            List of similar papers containing ID, title, abstract and BM25 score
+        """
+        if self.bm25_index is None:
+            raise ValueError("BM25 index not built. Call _build_bm25_index() first.")
+        
+        try:
+            # Tokenize query
+            query_tokens = query.lower().split()
+            
+            # Get top-k documents
+            scores = self.bm25_index.get_scores(query_tokens)
+            top_k_indices = np.argsort(scores)[-k:][::-1]
+            
+            # Organize results
+            results = []
+            for idx in top_k_indices:
+                if idx < len(self.citation_ids):  # Safety check
+                    citation_id = self.citation_ids[idx]
+                    results.append({
+                        'citation_id': citation_id,
+                        'title': self.bib_titles_dict.get(citation_id, ""),
+                        'abstract': self.bib_abstracts_dict.get(citation_id, ""),
+                        'citation_count': self.citation_stats.get(citation_id, 0),
+                        'bm25_score': float(scores[idx])
+                    })
+            
+            return results
+            
+        except Exception as e:
+            self.logger.error(f"Error in BM25 search: {str(e)}")
+            raise
+
+    def rerank_papers(self, query: str, papers: List[Dict]) -> List[Dict]:
+        """
+        Re-rank papers using CrossEncoder model
+        Args:
+            query: Query text
+            papers: List of candidate paper dictionaries
+        Returns:
+            Re-ranked list of papers with rerank scores
+        """
+        try:
+            if not papers:
+                return []
+            
+            # Load reranker model
+            self._load_reranker()
+            
+            if self.reranker is None:
+                self.logger.warning("Reranker not available, returning papers in original order")
+                return papers
+            
+            # Create query-document pairs
+            pairs = []
+            for paper in papers:
+                paper_text = f"{paper['title']} {paper['abstract']}"
+                pairs.append([query, paper_text])
+            
+            # Get reranking scores
+            scores = self.reranker.predict(pairs)
+            
+            # Add scores to papers and sort
+            for i, paper in enumerate(papers):
+                paper['rerank_score'] = float(scores[i])
+            
+            # Sort by rerank score in descending order
+            sorted_papers = sorted(papers, key=lambda x: x['rerank_score'], reverse=True)
+            
+            self.logger.info(f"Successfully re-ranked {len(papers)} papers")
+            return sorted_papers
+            
+        except Exception as e:
+            self.logger.error(f"Error in paper re-ranking: {str(e)}")
+            return papers  # Return original list if re-ranking fails

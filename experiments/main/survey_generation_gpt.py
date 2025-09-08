@@ -16,86 +16,9 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from src.data.data_processor import DataProcessor
+from src.utils.api_client import GPTAPIClient
 from sklearn.metrics.pairwise import cosine_similarity
 
-class GPTAPIClient:
-    """GPT API Client"""
-    
-    def __init__(self, 
-                 api_key: str,
-                 base_url: str = 'https://api.gpt.ge/v1',
-                 max_retries: int = 3,
-                 retry_delay: float = 1.0):
-        """
-        Initialize GPT API client
-        
-        Args:
-            api_key: API key
-            base_url: Base API URL
-            max_retries: Maximum number of retries
-            retry_delay: Retry delay in seconds
-        """
-        self.api_key = api_key
-        self.base_url = base_url
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
-        self.headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json'
-        }
-        self._setup_logger()
-    
-    def _setup_logger(self):
-        """Configure logger"""
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
-
-    def generate_text(self, 
-                     prompt: str,
-                     max_tokens: int = 1000,
-                     temperature: float = 0.7) -> Optional[str]:
-        """
-        Generate text using GPT API
-        
-        Args:
-            prompt: Input prompt text
-            max_tokens: Maximum tokens to generate
-            temperature: Sampling temperature
-            
-        Returns:
-            Generated text, or None if failed
-        """
-        retry_count = 0
-        while retry_count < self.max_retries:
-            try:
-                response = requests.post(
-                    f'{self.base_url}/chat/completions',
-                    headers=self.headers,
-                    json={
-                        'model': 'gpt-4o-mini',
-                        'messages': [
-                            {'role': 'user', 'content': prompt}
-                        ],
-                        'temperature': temperature,
-                        'max_tokens': max_tokens
-                    },
-                    timeout=60
-                )
-                response.raise_for_status()
-                result = response.json()
-                self.logger.info("Successfully generated text")
-                return result['choices'][0]['message']['content']
-            except Exception as e:
-                retry_count += 1
-                if retry_count < self.max_retries:
-                    self.logger.warning(f"API call failed (attempt {retry_count}/{self.max_retries}): {str(e)}")
-                    time.sleep(self.retry_delay)
-                else:
-                    self.logger.error(f"API call failed after {self.max_retries} attempts: {str(e)}")
-                    return None
 
 class PaperAllocationAgent:
     """Paper allocation agent that combines direct matching and vector search"""
@@ -360,7 +283,11 @@ class SurveyGenerator:
         self.data_processor = DataProcessor()
         self.data_processor.load_processed_data(processed_data_dir)
         
-        self.api_client = GPTAPIClient(api_key)
+        self.api_client = GPTAPIClient(
+            api_key=api_key,
+            base_url=os.getenv('GPT_BASE_URL', 'https://api.gpt.ge/v1'),
+            model=os.getenv('GPT_MODEL', 'gpt-4o-mini')
+        )
         self.paper_allocator = PaperAllocationAgent(self.data_processor)
         self.abstract_writer = AbstractWriterAgent(self.api_client)
         self.section_writer = SectionWriterAgent(self.api_client)
@@ -466,13 +393,19 @@ def main():
         # Read original data
         df = pd.read_pickle('./data/raw/original_survey_df.pkl')
         
+        # Get API key from environment variable
+        api_key = os.getenv('GPT_API_KEY')
+        if not api_key:
+            raise ValueError("GPT_API_KEY environment variable not set")
+        
         # Initialize generator
         generator = SurveyGenerator(
-            api_key='sk-g**0'
+            api_key=api_key
         )
         
         # Generate survey
-        generator.generate_multiple_surveys(df, num_surveys=2)
+        num_surveys = int(os.getenv('NUM_SURVEYS', 2))
+        generator.generate_multiple_surveys(df, num_surveys=num_surveys)
         
     except Exception as e:
         print(f"Error in main: {str(e)}")
