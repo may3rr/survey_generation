@@ -6,10 +6,13 @@ import logging
 import pandas as pd
 import requests
 import time
-from typing import Dict, List, Optional
+import copy
+from typing import Dict, List, Optional, Tuple
 import sys
 import os
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dotenv import load_dotenv
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -158,7 +161,7 @@ class AbstractWriterAgent:
         )
         self.logger = logging.getLogger(__name__)
 
-    def generate(self, survey_title: str, allocation_results: Dict) -> str:
+    def generate(self, survey_title: str, allocation_results: Dict) -> Tuple[str, Optional[Dict], float]:
         """Generate abstract"""
         try:
             prompt = f"""Write a comprehensive academic abstract for a survey paper titled "{survey_title}".
@@ -181,12 +184,12 @@ The abstract should:
 """
             
             self.logger.info("Generating abstract...")
-            abstract = self.api_client.generate_text(prompt, max_tokens=500)
-            return abstract if abstract else ""
+            text, usage, duration = self.api_client.generate_text(prompt, max_tokens=500)
+            return (text or "", usage, duration)
             
         except Exception as e:
             self.logger.error(f"Error generating abstract: {str(e)}")
-            return ""
+            return "", None, 0.0
 
 class SectionWriterAgent:
     """Section content writer agent with outline awareness"""
@@ -207,7 +210,7 @@ class SectionWriterAgent:
                 papers_info: List[Dict], 
                 survey_title: str,
                 full_outline: List[str],
-                max_tokens: int = 1500) -> str:
+                max_tokens: int = 1500) -> Tuple[str, Optional[Dict], float]:
         """
         Generate section content with awareness of the full document structure
         
@@ -260,12 +263,12 @@ Remember: Your section is part of a larger survey paper. Maintain coherence with
 """
 
             self.logger.info(f"Generating content for section: {section_title}")
-            content = self.api_client.generate_text(prompt, max_tokens=max_tokens)
-            return content if content else ""
+            text, usage, duration = self.api_client.generate_text(prompt, max_tokens=max_tokens)
+            return (text or "", usage, duration)
             
         except Exception as e:
             self.logger.error(f"Error generating section: {str(e)}")
-            return ""
+            return "", None, 0.0
 
 class SurveyGenerator:
     """Survey generation system"""
@@ -295,6 +298,52 @@ class SurveyGenerator:
         # Create output directory
         self.output_dir = "./outputtest"
         os.makedirs(self.output_dir, exist_ok=True)
+        self.cost_tracker = self._init_cost_tracker()
+        try:
+            self.section_workers = max(1, int(os.getenv('SECTION_WORKERS', '10')))
+        except ValueError:
+            self.section_workers = 10
+
+    def _init_cost_tracker(self) -> Dict:
+        return {
+            'total_tokens': 0,
+            'prompt_tokens': 0,
+            'completion_tokens': 0,
+            'total_duration': 0.0,
+            'api_calls': 0,
+            'details_by_agent': {
+                'abstract_writer': [],
+                'section_writer': []
+            }
+        }
+
+    def _reset_cost_tracker(self):
+        self.cost_tracker = self._init_cost_tracker()
+
+    def _record_cost(self, agent_name: str, usage: Optional[Dict], duration: float):
+        if agent_name not in self.cost_tracker['details_by_agent']:
+            self.cost_tracker['details_by_agent'][agent_name] = []
+
+        self.cost_tracker['api_calls'] += 1
+        self.cost_tracker['total_duration'] += duration or 0.0
+
+        if usage:
+            prompt_tokens = usage.get('prompt_tokens', 0) or 0
+            completion_tokens = usage.get('completion_tokens', 0) or 0
+            total_tokens = usage.get('total_tokens', prompt_tokens + completion_tokens) or 0
+            self.cost_tracker['prompt_tokens'] += prompt_tokens
+            self.cost_tracker['completion_tokens'] += completion_tokens
+            self.cost_tracker['total_tokens'] += total_tokens
+        else:
+            prompt_tokens = completion_tokens = total_tokens = 0
+
+        self.cost_tracker['details_by_agent'][agent_name].append({
+            'duration': duration,
+            'usage': usage or {},
+            'prompt_tokens': prompt_tokens,
+            'completion_tokens': completion_tokens,
+            'total_tokens': total_tokens
+        })
     
     def _setup_logger(self):
         logging.basicConfig(
@@ -307,6 +356,7 @@ class SurveyGenerator:
         """Generate a single survey with context-aware section writing"""
         try:
             self.logger.info(f"Starting generation for survey: {survey_info['title']}")
+            self._reset_cost_tracker()
             
             # 1. Allocate papers for each section
             allocation_results = {}
@@ -324,31 +374,53 @@ class SurveyGenerator:
                 json.dump(allocation_results, f, indent=2)
             
             # 2. Generate abstract
-            abstract = self.abstract_writer.generate(
+            abstract_text, abstract_usage, abstract_duration = self.abstract_writer.generate(
                 survey_title=survey_info['title'],
                 allocation_results=allocation_results
             )
+            self._record_cost('abstract_writer', abstract_usage, abstract_duration)
             
-            # 3. Generate sections with full context
+            # 3. Generate sections with full context (parallelized)
             sections_content = {}
             full_outline = survey_info['sections']  # Complete outline of the paper
-            
-            for section in full_outline:
-                content = self.section_writer.generate(
-                    section_title=section,
-                    papers_info=allocation_results[section]['allocated_papers'],
-                    survey_title=survey_info['title'],
-                    full_outline=full_outline
-                )
-                sections_content[section] = content
+
+            section_results: Dict[str, Tuple[str, Optional[Dict], float]] = {}
+
+            if full_outline:
+                with ThreadPoolExecutor(max_workers=self.section_workers) as executor:
+                    future_to_section = {
+                        executor.submit(
+                            self.section_writer.generate,
+                            section_title=section,
+                            papers_info=allocation_results[section]['allocated_papers'],
+                            survey_title=survey_info['title'],
+                            full_outline=full_outline
+                        ): section for section in full_outline
+                    }
+
+                    for future in as_completed(future_to_section):
+                        section = future_to_section[future]
+                        try:
+                            section_results[section] = future.result()
+                        except Exception as exc:
+                            self.logger.error(
+                                f"Error generating section {section} for survey {survey_info['title']}: {exc}"
+                            )
+                            section_results[section] = ("", None, 0.0)
+
+                for section in full_outline:
+                    content_text, usage, duration = section_results.get(section, ("", None, 0.0))
+                    self._record_cost('section_writer', usage, duration)
+                    sections_content[section] = content_text
             
             # 4. Combine results
             survey_content = {
                 'title': survey_info['title'],
-                'abstract': abstract,
+                'abstract': abstract_text,
                 'sections': sections_content,
                 'paper_allocation': allocation_results
             }
+            survey_content['cost_analysis'] = copy.deepcopy(self.cost_tracker)
             
             # 5. Save results
             output_file = f"{self.output_dir}/{output_prefix}_generated.json"
@@ -356,6 +428,7 @@ class SurveyGenerator:
                 json.dump(survey_content, f, indent=2)
             
             self.logger.info(f"Successfully generated survey: {survey_info['title']}")
+            self._reset_cost_tracker()
             return survey_content
             
         except Exception as e:
@@ -366,6 +439,12 @@ class SurveyGenerator:
         """Generate multiple surveys"""
         try:
             self.logger.info(f"Starting generation of {num_surveys} surveys")
+            available_surveys = len(survey_df)
+            if num_surveys > available_surveys:
+                raise ValueError(
+                    f"Requested {num_surveys} surveys but only {available_surveys} are available in the dataset. "
+                    "Please adjust the configuration."
+                )
             
             for i in range(num_surveys):
                 # Select a survey as template
@@ -390,6 +469,8 @@ class SurveyGenerator:
 
 def main():
     try:
+        load_dotenv()
+
         # Read original data
         df = pd.read_pickle('./data/raw/original_survey_df.pkl')
         

@@ -9,6 +9,7 @@ import time
 from typing import Dict, List, Optional
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -422,7 +423,14 @@ class SurveyGenerator:
         """Generate multiple surveys"""
         try:
             self.logger.info(f"Starting generation of {num_surveys} surveys")
-            
+
+            available_surveys = len(survey_df)
+            if num_surveys > available_surveys:
+                raise ValueError(
+                    f"Requested {num_surveys} surveys but only {available_surveys} are available in the dataset. "
+                    "Please adjust the configuration."
+                )
+
             for i in range(num_surveys):
                 # Select a survey as template
                 survey = survey_df.iloc[i]
@@ -446,12 +454,18 @@ class SurveyGenerator:
 
 def main():
     try:
+        load_dotenv()
+
         # Read original data
         df = pd.read_pickle('./data/raw/original_survey_df.pkl')
         
         # Initialize generator (no need for processed_data_dir anymore)
+        api_key = os.getenv('QWEN_API_KEY')
+        if not api_key:
+            raise ValueError("QWEN_API_KEY environment variable not set. Please configure it in your .env file.")
+
         generator = SurveyGenerator(
-            api_key='sk-g**0'
+            api_key=api_key
         )
         
         # Generate survey

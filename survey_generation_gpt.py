@@ -7,6 +7,7 @@ import pandas as pd
 import requests
 import time
 from typing import Dict, List, Optional
+from dotenv import load_dotenv
 from src.data_processor import DataProcessor
 import concurrent.futures
 from sklearn.metrics.pairwise import cosine_similarity
@@ -412,7 +413,14 @@ class SurveyGenerator:
         """Generate multiple surveys"""
         try:
             self.logger.info(f"Starting generation of {num_surveys} surveys")
-            
+
+            available_surveys = len(survey_df)
+            if num_surveys > available_surveys:
+                raise ValueError(
+                    f"Requested {num_surveys} surveys but only {available_surveys} are available in the dataset. "
+                    "Please adjust the configuration."
+                )
+
             for i in range(num_surveys):
                 # Select a survey as template
                 survey = survey_df.iloc[i]
@@ -436,12 +444,18 @@ class SurveyGenerator:
 
 def main():
     try:
+        load_dotenv()
+
         # Read original data
         df = pd.read_pickle('./data/raw/original_survey_df.pkl')
         
         # Initialize generator
+        api_key = os.getenv('GPT_API_KEY')
+        if not api_key:
+            raise ValueError("GPT_API_KEY environment variable not set. Please configure it in your .env file.")
+
         generator = SurveyGenerator(
-            api_key='sk-gakaBMw0kKz3KaTSC559F71c481e4417A6Dc732c33AbAc90'
+            api_key=api_key
         )
         
         # Generate survey

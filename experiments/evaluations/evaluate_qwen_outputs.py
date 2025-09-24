@@ -10,8 +10,7 @@ import pandas as pd
 from rouge_score import rouge_scorer
 from typing import Dict, List, Optional
 import logging
-import nltk
-nltk.download('punkt')  # For sentence tokenization
+import numpy as np
 class SurveyEvaluator:
     """Survey evaluation class"""
     
@@ -114,48 +113,44 @@ class SurveyEvaluator:
             self.logger.error(f"Error evaluating survey: {str(e)}")
             return {}
 
-    def calculate_overall_average(self, all_scores: List[Dict]) -> Dict:
-        """Calculate overall average scores for all papers"""
+    def calculate_statistics(self, all_scores: List[Dict]) -> Dict:
+        """Calculate mean and standard deviation for ROUGE f-measure scores."""
         try:
-            if not all_scores:
-                self.logger.warning("No scores to average")
-                return {metric: {score_type: 0.0 for score_type in self.score_types}
-                       for metric in self.metrics}
-            
-            # Initialize accumulated values
-            total_scores = {
-                metric: {score_type: 0.0 for score_type in self.score_types}
-                for metric in self.metrics
-            }
-            
-            # Add up all scores
-            for doc_scores in all_scores:
-                if 'overall' in doc_scores:
-                    for metric in self.metrics:
-                        for score_type in self.score_types:
-                            total_scores[metric][score_type] += doc_scores['overall'][metric][score_type]
-            
-            # Calculate average
-            num_docs = len(all_scores)
-            if num_docs > 0:
-                for metric in self.metrics:
-                    for score_type in self.score_types:
-                        total_scores[metric][score_type] /= num_docs
-            
-            return total_scores
-            
-        except Exception as e:
-            self.logger.error(f"Error calculating average scores: {str(e)}")
-            return {metric: {score_type: 0.0 for score_type in self.score_types}
-                   for metric in self.metrics}
+            stats: Dict[str, Dict[str, float]] = {}
+            for metric in self.metrics:
+                values = []
+                for doc_scores in all_scores:
+                    overall = doc_scores.get('overall', {})
+                    metric_scores = overall.get(metric, {})
+                    fmeasure = metric_scores.get('fmeasure')
+                    if fmeasure is not None:
+                        values.append(fmeasure)
 
-    def print_overall_scores(self, scores: Dict):
-        """Print overall average scores"""
+                if values:
+                    arr = np.array(values, dtype=float)
+                    stats[metric] = {
+                        'mean': float(np.mean(arr)),
+                        'std': float(np.std(arr))
+                    }
+                else:
+                    stats[metric] = {'mean': 0.0, 'std': 0.0}
+
+            if not all_scores:
+                self.logger.warning("No scores available for statistics calculation")
+
+            return stats
+
+        except Exception as e:
+            self.logger.error(f"Error calculating statistics: {str(e)}")
+            return {metric: {'mean': 0.0, 'std': 0.0} for metric in self.metrics}
+
+    def print_overall_scores(self, statistics: Dict):
+        """Print overall statistics in mean ± std format."""
         print("\nOverall ROUGE Scores:")
-        for metric, metric_scores in scores.items():
-            print(f"\n{metric}:")
-            for score_type, value in metric_scores.items():
-                print(f"  {score_type}: {value:.4f}")
+        for metric, metric_stats in statistics.items():
+            mean = metric_stats.get('mean', 0.0)
+            std = metric_stats.get('std', 0.0)
+            print(f"{metric.upper()} (fmeasure): {mean:.4f} ± {std:.4f}")
 
 def main():
     try:
@@ -212,17 +207,17 @@ def main():
                         }, f, indent=2)
         
         if all_scores:
-            # Calculate and print overall average scores
-            overall_average = evaluator.calculate_overall_average(all_scores)
-            evaluator.print_overall_scores(overall_average)
+            statistics = evaluator.calculate_statistics(all_scores)
+            evaluator.print_overall_scores(statistics)
         else:
             print("No survey files were successfully evaluated")
-        
+            statistics = evaluator.calculate_statistics([])
+
         # Save evaluation results
         output_path = output_full_path / 'overall_evaluation.json'
         with open(output_path, 'w') as f:
             json.dump({
-                'overall_average': overall_average,
+                'overall_statistics': statistics,
                 'individual_scores': all_scores
             }, f, indent=2)
         

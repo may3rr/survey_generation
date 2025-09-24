@@ -3,7 +3,7 @@
 import requests
 import logging
 import time
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 class GPTAPIClient:
     """GPT API Client"""
@@ -47,7 +47,7 @@ class GPTAPIClient:
     def generate_text(self, 
                      prompt: str,
                      max_tokens: int = 1000,
-                     temperature: float = 0.7) -> Optional[str]:
+                     temperature: float = 0.7) -> Tuple[Optional[str], Optional[Dict], float]:
         """
         Generate text
         Args:
@@ -59,6 +59,7 @@ class GPTAPIClient:
         """
         retry_count = 0
         while retry_count < self.max_retries:
+            start_time = time.monotonic()
             try:
                 # Fix URL construction to avoid duplicate /v1
                 chat_url = f'{self.base_url}/chat/completions' if self.base_url.endswith('/v1') else f'{self.base_url}/v1/chat/completions'
@@ -79,21 +80,32 @@ class GPTAPIClient:
                 
                 response.raise_for_status()
                 result = response.json()
+                duration = time.monotonic() - start_time
+                usage = result.get('usage')
                 
                 self.logger.info("Successfully generated text")
-                return result['choices'][0]['message']['content']
+                if result.get('choices'):
+                    return result['choices'][0]['message']['content'], usage, duration
+                return None, usage, duration
                 
             except requests.exceptions.RequestException as e:
                 retry_count += 1
+                duration = time.monotonic() - start_time
                 if retry_count < self.max_retries:
                     self.logger.warning(
                         f"API call failed (attempt {retry_count}/{self.max_retries}): {str(e)}"
                     )
                     time.sleep(self.retry_delay)
+                    continue
                 else:
                     self.logger.error(f"API call failed after {self.max_retries} attempts: {str(e)}")
-                    return None
+                    return None, None, duration
             
             except Exception as e:
+                retry_count += 1
+                duration = time.monotonic() - start_time
                 self.logger.error(f"Unexpected error: {str(e)}")
-                return None
+                if retry_count < self.max_retries:
+                    time.sleep(self.retry_delay)
+                    continue
+                return None, None, duration
