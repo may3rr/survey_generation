@@ -8,6 +8,9 @@ import pandas as pd
 import torch
 from transformers import BartTokenizer, BartForConditionalGeneration
 
+# Set up HuggingFace mirror endpoint
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
 # Import QFiD model
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent / "SciReviewGen-main" / "qfid"))

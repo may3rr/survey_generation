@@ -20,6 +20,7 @@ from transformers.modeling_outputs import (
     Seq2SeqSequenceClassifierOutput,
 )
 from transformers.modeling_utils import PreTrainedModel
+from transformers.generation import GenerationMixin
 from transformers.models.bart.configuration_bart import BartConfig
 
 
@@ -741,13 +742,13 @@ class BartEncoder(BartPretrainedModel):
         
         for i, token in enumerate(input_ids[0]):
             if token == 2 and prev_token == 1437:
-                input_ids_list.append(torch.cat((torch.cat((torch.tensor([0], device=device), torch.tensor(input_ids[0][prev_i:i-1])))[:min(len(input_ids[0][prev_i-1:i-1]), self.config.max_position_embeddings-1)], torch.tensor([2], device=device)))).unsqueeze(dim=0))
+                input_ids_list.append(torch.cat((torch.cat((torch.tensor([0], device=device), torch.tensor(input_ids[0][prev_i:i-1])))[:min(len(input_ids[0][prev_i-1:i-1]), self.config.max_position_embeddings-1)], torch.tensor([2], device=device))).unsqueeze(dim=0))
                 attention_mask_list.append(torch.tensor(attention_mask[0][prev_i-1:i])[:self.config.max_position_embeddings].unsqueeze(dim=0))                
                 prev_i = i + 1
                 n_sep += 1
             prev_token = token
         
-        input_ids_list.append(torch.cat((torch.cat((torch.tensor([0], device=device), torch.tensor(input_ids[0][prev_i:])))[:min(len(input_ids[0][prev_i:]), self.config.max_position_embeddings-1)], torch.tensor([2], device=device)))).unsqueeze(dim=0))
+        input_ids_list.append(torch.cat((torch.cat((torch.tensor([0], device=device), torch.tensor(input_ids[0][prev_i:])))[:min(len(input_ids[0][prev_i:]), self.config.max_position_embeddings-1)], torch.tensor([2], device=device))).unsqueeze(dim=0))
         attention_mask_list.append((torch.tensor(attention_mask[0][prev_i-1:]))[:self.config.max_position_embeddings].unsqueeze(dim=0))
 
         l = max(list(map(lambda x: len(x[0]), input_ids_list)))
@@ -1002,7 +1003,7 @@ class BartDecoder(BartPretrainedModel):
             attention_mask, input_shape, inputs_embeds, past_key_values_length
         )
 
-        # encoder_attention_maskを1埋めで作る
+        # Create encoder_attention_mask filled with 1s
         #encoder_attention_mask = torch.ones(encoder_hidden_states.shape[0], encoder_hidden_states.shape[1], device="cuda")
         encoder_attention_mask = encoder_attention_mask.narrow(dim=1, start=0, length=encoder_hidden_states.shape[1])
         # expand encoder attention mask
@@ -1228,7 +1229,7 @@ class BartModel(BartPretrainedModel):
         )
 
 
-class BartForConditionalGeneration(BartPretrainedModel):
+class BartForConditionalGeneration(GenerationMixin, BartPretrainedModel):
     base_model_prefix = "model"
     _keys_to_ignore_on_load_missing = [r"final_logits_bias", r"lm_head\.weight"]
 
